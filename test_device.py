@@ -16,5 +16,7 @@ composer = device.Quantum_Composers(QC, baud)
 try:
     with FLIRCamera(index=0) as cam:
         print("Camera connected:", cam.is_connected())
+        path = cam.snap_and_save(folder="captures")
+        print(f"Image saved: {path}")
 except Exception as e:
     print("Camera connection failed:", e)
