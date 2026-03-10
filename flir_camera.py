@@ -2,6 +2,8 @@ import PySpin
 from PySpin import Camera
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import datetime
 
 class FLIRCamera:
     """Class for control of the FLIR Blackfly S (BFS-U3-244S8M-C)."""
@@ -61,3 +63,29 @@ class FLIRCamera:
     def __exit__(self, *args):
         """Cleanup when exiting context (for 'with')."""
         self.close()
+
+    def start(self):
+        self.cam.BeginAcquisition()
+
+    def stop(self):
+        self.cam.EndAc
+
+    def snap_and_save(self, filename=None, folder="images", timeout_ms=1000, force_mono8=True):
+        os.makedirs(folder, exist_ok=True)
+        if filename is None:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            filename = os.path.join(folder, f"flir_{ts}.png")
+        self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+
+        self.cam.BeginAcquisition()
+        try:
+            img = self.cam.GetNextImage(timeout_ms)
+            try:
+                if img.IsIncomplete():
+                    raise RuntimeError(f"Incomplete image: {img.GetImageStatus()}")
+                img.Save(filename)
+                return filename
+            finally:
+                img.Release()
+        finally:
+            self.cam.EndAcquisition()
