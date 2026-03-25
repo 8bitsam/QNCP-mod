@@ -1,4 +1,7 @@
+import os
+import gc
 import PySpin
+from datetime import datetime
 
 
 class FLIRCamera:
@@ -61,6 +64,43 @@ class FLIRCamera:
     def is_connected(self):
         return self.cam is not None and self.cam.IsInitialized()
 
+    def configure(self):
+        nodemap = self.cam.GetNodeMap()
+        print("[configure] AcquisitionMode = Continuous")
+        self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
+        for t in ["Mode", "Source", "Selector"]:
+            node = PySpin.CEnumerationPtr(nodemap.GetNode(f"Trigger{t}"))
+            if PySpin.IsAvailable(node) and PySpin.IsReadable(node):
+                print(f"[configure] Trigger{t} = {node.GetCurrentEntry().GetSymbolic()}")
+            else:
+                print(f"[configure] Trigger{t} = (not readable)")
+    
+    def capture(self, n_frames, folder="captures", prefix="frame", timeout_ms=5000):
+        run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = os.path.join(folder, f"run_{run_ts}")
+        os.makedirs(run_dir, exist_ok=True)
+        saved = []
+        self.cam.BeginAcquisition()
+        print(f"[capture] acquisition started, saving {n_frames} frame(s) to: {run_dir}")
+        try:
+            for k in range(n_frames):
+                img = None
+                try:
+                    img = self.cam.GetNextImage(timeout_ms)
+                    if img.IsIncomplete():
+                        raise RuntimeError(f"Frame {k} incomplete: {img.GetImageStatus()}")
+                    path = os.path.join(run_dir, f"{prefix}_{k:04d}.pgm")
+                    img.Save(path)
+                    saved.append(path)
+                    print(f"[capture] frame {k:04d} -> {path}")
+                finally:
+                    if img is not None:
+                        img.Release()
+        finally:
+            self.cam.EndAcquisition()
+            print("[capture] acquisition ended")
+        return saved
+
     def close(self):
         if self.cam is not None:
             try:
@@ -68,6 +108,7 @@ class FLIRCamera:
                     self.cam.DeInit()
             finally:
                 self.cam = None
+                gc.collect()
         if self.cam_list is not None:
             self.cam_list.Clear()
             self.cam_list = None
