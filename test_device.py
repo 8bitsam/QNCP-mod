@@ -5,7 +5,8 @@ from flir_camera import FLIRCamera
 # Get all QC's
 baud = 38400
 devices = get_devices(baud, devicetype=device.Quantum_Composers)
-QC = devices[2]
+print(devices)
+QC = devices[0]
 print(QC)
 
 # QC
@@ -13,10 +14,14 @@ composer = device.Quantum_Composers(QC, baud)
 # TODO: write some stuff to qc...
 
 # Camera
+cams = FLIRCamera.list_cameras()
+print(cams)
+blackfly_serial = 23319486
+
 try:
-    with FLIRCamera(index=0) as cam:
+    with FLIRCamera(serial=blackfly_serial) as cam:
         print("Camera connected:", cam.is_connected())
-        path = cam.snap_and_save(folder="captures")
-        print(f"Image saved: {path}")
+        cam.configure()
+        paths = cam.capture(n_frames=30, timeout_ms=5000, folder="captures", prefix="blackfly")
 except Exception as e:
     print("Camera connection failed:", e)
