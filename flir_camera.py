@@ -1,65 +1,79 @@
-import os
-import traceback
-from datetime import datetime
 import PySpin
 
 
 class FLIRCamera:
-    """Class for control of the FLIR Blackfly S (BFS-U3-244S8M-C)."""
-    def __init__(self, index=0):
+    def __init__(self, serial):
         self.system = None
         self.cam_list = None
         self.cam = None
+        self.serial = str(serial)
+        self.system = PySpin.System.GetInstance()
+        self.cam_list = self.system.GetCameras()
+        if self.cam_list.GetSize() == 0:
+            self.close()
+            raise RuntimeError("No FLIR cameras detected.")
+        self.cam = self.cam_list.GetBySerial(self.serial)
+        if not self.cam.IsValid():
+            self.close()
+            raise RuntimeError(f"Camera with serial {self.serial} not found.")
+        self.cam.Init()
+
+    @staticmethod
+    def list_cameras():
+        system = None
+        cam_list = None
+        out = []
         try:
-            print("[init] getting system")
-            self.system = PySpin.System.GetInstance()
-            print("[init] getting camera list")
-            self.cam_list = self.system.GetCameras()
-            num_cameras = self.cam_list.GetSize()
-            print(f"[init] cameras found: {num_cameras}")
-            if num_cameras == 0:
-                raise RuntimeError("No FLIR cameras detected.")
-            if index >= num_cameras:
-                raise RuntimeError(
-                    f"Requested camera index {index} but only {num_cameras} camera(s) found."
-                )
-            print(f"[init] selecting camera index {index}")
-            print(self.cam_list)
-            self.cam = self.cam_list[index]
-            print("[init] initializing camera")
-            self.cam.Init()
-            print("[init] camera initialized")
-        except Exception:
-            print("[init] FAILED")
-            traceback.print_exc()
-            self._cleanup()
-            raise
+            system = PySpin.System.GetInstance()
+            cam_list = system.GetCameras()
+            n = cam_list.GetSize()
+            for i in range(n):
+                cam = None
+                tlmap = None
+                sn_node = None
+                model_node = None
+                cam = cam_list.GetByIndex(i)
+                tlmap = cam.GetTLDeviceNodeMap()
+                sn_node = PySpin.CStringPtr(tlmap.GetNode("DeviceSerialNumber"))
+                serial = None
+                if PySpin.IsAvailable(sn_node) and PySpin.IsReadable(sn_node):
+                    serial = sn_node.GetValue()
+                model_node = PySpin.CStringPtr(tlmap.GetNode("DeviceModelName"))
+                model = None
+                if PySpin.IsAvailable(model_node) and PySpin.IsReadable(model_node):
+                    model = model_node.GetValue()
+                out.append({
+                    "serial": serial,
+                    "model": model
+                })
+                del model_node
+                del sn_node
+                del tlmap
+                del cam
+            return out
+
+        finally:
+            if cam_list is not None:
+                cam_list.Clear()
+            if system is not None:
+                system.ReleaseInstance()
 
     def is_connected(self):
         return self.cam is not None and self.cam.IsInitialized()
 
-    def _cleanup(self):
-        try:
-            if self.cam is not None and self.cam.IsInitialized():
-                print("[cleanup] deinitializing camera")
-                self.cam.DeInit()
-        except Exception:
-            print("[cleanup] camera deinit failed")
-            traceback.print_exc()
-        try:
-            if self.cam_list is not None:
-                print("[cleanup] clearing camera list")
-                self.cam_list.Clear()
-        except Exception:
-            print("[cleanup] cam_list clear failed")
-            traceback.print_exc()
-
     def close(self):
-        print("[close]")
-        self._cleanup()
-        self.cam = None
-        self.cam_list = None
-        self.system = None
+        if self.cam is not None:
+            try:
+                if self.cam.IsInitialized():
+                    self.cam.DeInit()
+            finally:
+                self.cam = None
+        if self.cam_list is not None:
+            self.cam_list.Clear()
+            self.cam_list = None
+        if self.system is not None:
+            self.system.ReleaseInstance()
+            self.system = None
 
     def __enter__(self):
         return self
@@ -67,66 +81,3 @@ class FLIRCamera:
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
         return False
-
-    def snap_and_save(self, filename=None, folder="images", timeout_ms=1000):
-        os.makedirs(folder, exist_ok=True)
-        if filename is None:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            filename = os.path.join(folder, f"flir_{ts}.png")
-        print(f"[capture] output path: {filename}")
-        try:
-            print("[capture] setting AcquisitionMode = Continuous")
-            self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-        except Exception:
-            print("[capture] FAILED while setting acquisition mode")
-            traceback.print_exc()
-            raise
-        try:
-            print("[capture] BeginAcquisition")
-            self.cam.BeginAcquisition()
-        except Exception:
-            print("[capture] setup/acquisition failed")
-            traceback.print_exc()
-            raise
-        img = None
-        try:
-            try:
-                print(f"[capture] GetNextImage timeout={timeout_ms} ms")
-                img = self.cam.GetNextImage(timeout_ms)
-                print("[capture] image received")
-            except Exception:
-                print("[capture] FAILED at GetNextImage")
-                traceback.print_exc()
-                raise
-            try:
-                incomplete = img.IsIncomplete()
-                print(f"[capture] IsIncomplete = {incomplete}")
-                if incomplete:
-                    raise RuntimeError(f"Incomplete image: {img.GetImageStatus()}")
-            except Exception:
-                print("[capture] FAILED while checking image completeness")
-                traceback.print_exc()
-                raise
-            try:
-                print("[capture] saving image")
-                img.Save(filename)
-                print("[capture] save successful")
-            except Exception:
-                print("[capture] FAILED at img.Save")
-                traceback.print_exc()
-                raise
-            return filename
-        finally:
-            if img is not None:
-                try:
-                    print("[capture] releasing image")
-                    img.Release()
-                except Exception:
-                    print("[capture] FAILED at img.Release")
-                    traceback.print_exc()
-            try:
-                print("[capture] EndAcquisition")
-                self.cam.EndAcquisition()
-            except Exception:
-                print("[capture] FAILED at EndAcquisition")
-                traceback.print_exc()
