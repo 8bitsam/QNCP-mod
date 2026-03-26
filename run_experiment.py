@@ -1,3 +1,4 @@
+import os
 from QNCP import device
 from qncp_funcs import setup_qc_from_csv, enable_qc, disable_qc
 from flir_camera import FLIRCamera
@@ -20,14 +21,16 @@ composer = device.Quantum_Composers(QC, baud)
 composer.clear_buffer()
 
 # Set system options
-composer.sys_mode('NORM')
+# composer.sys_mode('NORM')
 composer.t0(0.05)          # 50 ms period
-composer.trig(mode='DIS', edge='RIS', level=2.5)
-composer.gate(mode='DIS', logic='LOW', level=2.5)
+# composer.trig(mode='DIS', edge='RIS', level=2.5)
+# composer.gate(mode='DIS', logic='LOW', level=2.5)
 # TODO: missing puslse mode?
 
 # Set channels
-setup_qc_from_csv(composer=composer, csv_path='qc_channels.csv')
+csv_name = "Scripts/qc_channels.csv"
+csv_path = os.path.join(os.getcwd(), csv_name)
+setup_qc_from_csv(composer=composer, csv_path=csv_path)
 
 
 ### RUN AND TAKE PICTURE
