@@ -33,7 +33,7 @@ def setup_qc_from_csv(composer: device.Quantum_Composers, csv_path: str):
         # Set values
         composer.dly(ch, delay)
         composer.wid(ch, width)
-        composer.sync(ch, sync_src)
+        # composer.sync(ch, sync_src)
         composer.wcount(ch, wait_count)
         composer.pol(ch, polarity)
         if out_mode == 'TTL':
