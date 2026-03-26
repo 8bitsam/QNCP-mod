@@ -6,11 +6,13 @@ from flir_camera import FLIRCamera
 baud = 38400
 devices = get_devices(baud, devicetype=device.Quantum_Composers)
 print(devices)
-QC = devices[0]
-print(QC)
+QC = 'ASRL6::INSTR'
 
 # QC
 composer = device.Quantum_Composers(QC, baud)
+pulse_width = composer.read_value(':PULSE1:WIDT?')
+print(pulse_width)
+
 # TODO: write some stuff to qc...
 
 # Camera
