@@ -53,9 +53,13 @@ def setup_qc_from_csv(composer: device.Quantum_Composers, csv_path: str):
         # composer.ch_gate(ch, gate_mode)
 
 def enable_qc(composer: device.Quantum_Composers, channels=[1, 2, 3, 4, 5, 6, 7, 8]):
+    """Enable channel outputs and start system."""
     for ch in channels:
         composer.on(ch)
+    composer.on()
 
 def disable_qc(composer: device.Quantum_Composers, channels=[1, 2, 3, 4, 5, 6, 7, 8]):
+    """Disable channel outputs and turn off the system."""
+    composer.off()
     for ch in channels:
         composer.off(ch)
