@@ -29,6 +29,7 @@ def setup_qc_from_csv(composer: device.Quantum_Composers, csv_path: str):
         wait_count  = int(row['wait_count'])
         mux_timers  = [int(t) for t in str(row['mux']).split(',')]
         gate_mode   = str(row['gate_mode'])
+        enabled     = bool(row['enabled'])
 
         # Set values
         composer.dly(ch, delay)
@@ -51,6 +52,10 @@ def setup_qc_from_csv(composer: device.Quantum_Composers, csv_path: str):
             composer.norm(ch)
         composer.mux(ch, *mux_timers)
         # composer.ch_gate(ch, gate_mode)
+        if enabled:
+            composer.on(ch)
+        else:
+            composer.off(ch)
 
 def enable_qc(composer: device.Quantum_Composers, channels=[0]):
     """Enable channel outputs and start system."""
